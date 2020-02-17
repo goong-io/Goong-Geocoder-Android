@@ -1,0 +1,122 @@
+apply plugin: 'digital.wup.android-maven-publish'
+apply plugin: 'maven-publish'
+apply plugin: 'com.jfrog.bintray'
+apply plugin: 'com.jfrog.artifactory'
+
+ext {
+    goongArtifactGroupId = 'io.goong.goongsdk.geocoder'
+    goongArtifactId = 'goong-android-geocoder'
+    goongArtifactTitle = 'Geocoder with Goong Maps SDK for Android'
+    goongArtifactDescription = 'Geocoder with Goong Maps SDK for Android'
+    goongDeveloperName = 'Goong'
+    goongDeveloperId = 'goong'
+    goongArtifactUrl = 'https://docs.goong.io'
+    goongArtifactVcsUrl = ''
+    goongArtifactScmUrl = ''
+    goongArtifactLicenseName = 'BSD'
+    goongArtifactLicenseUrl = 'https://opensource.org/licenses/BSD-2-Clause'
+    versionName = "1.0"
+
+    goongBintrayUserOrg = 'goong-io'
+    goongBintrayRepoName = 'GoongMapSDK'
+}
+
+version = project.ext.versionName
+group = project.ext.goongArtifactGroupId
+
+publishing {
+    publications {
+        GoongMapsSdkPublication(MavenPublication) {
+            from components.android
+            groupId this.group
+            artifactId project.ext.goongArtifactId
+            version this.version
+
+            afterEvaluate {
+                artifacts = ["$buildDir/outputs/aar/goong-android-places-plugin-release.aar", androidSourcesJar, androidJavadocsJar]
+            }
+
+            pom.withXml {
+                final mainNode = asNode()
+                mainNode.appendNode('name', project.ext.goongArtifactTitle)
+                mainNode.appendNode('description', project.ext.goongArtifactTitle)
+                mainNode.appendNode('url', project.ext.goongArtifactUrl)
+
+                final licenseNode = mainNode.appendNode('licenses').appendNode('license')
+                licenseNode.appendNode('name', project.ext.goongArtifactLicenseName)
+                licenseNode.appendNode('url', project.ext.goongArtifactLicenseUrl)
+                licenseNode.appendNode('distribution', "repo")
+
+                final developerNode = mainNode.appendNode('developers').appendNode('developer')
+                developerNode.appendNode('id', project.ext.goongDeveloperId)
+                developerNode.appendNode('name', project.ext.goongDeveloperName)
+
+                final scmNode = mainNode.appendNode("scm")
+                scmNode.appendNode("connection", project.ext.goongArtifactScmUrl)
+                scmNode.appendNode("developerConnection", project.ext.goongArtifactScmUrl)
+                scmNode.appendNode("url", project.ext.goongArtifactUrl)
+            }
+        }
+    }
+}
+
+Properties properties = new Properties()
+properties.load(project.rootProject.file('local.properties').newDataInputStream())
+
+bintray {
+    user = properties.getProperty("bintray.user")
+    key = properties.getProperty("bintray.apikey")
+    publications = ['GoongMapsSdkPublication']
+    pkg {
+        repo = project.ext.goongBintrayRepoName
+        name = project.ext.goongArtifactId
+        userOrg = project.ext.goongBintrayUserOrg
+        licenses = [project.ext.goongArtifactLicenseName]
+        vcsUrl = project.ext.goongArtifactVcsUrl
+        publish = true
+        version {
+            name = project.ext.versionName
+            desc = project.ext.goongArtifactDescription
+            released = new Date()
+            gpg {
+                sign = true
+                passphrase = properties.getProperty("bintray.gpg.password")
+            }
+        }
+    }
+}
+
+task androidJavadocs(type: Javadoc) {
+    source = android.sourceSets.main.java.sourceFiles
+    classpath = files(android.bootClasspath)
+    failOnError = false
+}
+
+task androidJavadocsJar(type: Jar, dependsOn: androidJavadocs) {
+    classifier = 'javadoc'
+    from androidJavadocs.destinationDir
+}
+
+task androidSourcesJar(type: Jar) {
+    classifier = 'sources'
+    from android.sourceSets.main.java.sourceFiles
+}
+
+tasks.withType(Javadoc) {
+    options.addStringOption('encoding', 'UTF-8')
+    options.addStringOption('docencoding', 'UTF-8')
+    options.addStringOption('charset', 'UTF-8')
+}
+
+artifacts {
+    archives androidSourcesJar
+    archives androidJavadocsJar
+}
+
+afterEvaluate { project ->
+    android.libraryVariants.all { variant ->
+        tasks.androidJavadocs.doFirst {
+            classpath += files(variant.javaCompileProvider.get().classpath.files)
+        }
+    }
+}
