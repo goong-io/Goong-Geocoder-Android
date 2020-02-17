@@ -1,0 +1,2 @@
+include ':sample', ':goong-android-places-plugin'
+rootProject.name='Goong Geocder Sample'
